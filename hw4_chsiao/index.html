@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<title>Project 4: Frogger game</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+		</style>
+	</head>
+	<body>
+		<script src="lib/three.js"></script>
+		<script src="lib/objloader.js"></script>
+		<script src="lib/THREEx.KeyboardState.js"></script>
+		<script>
+		
+			
+			var scene = new THREE.Scene();
+			var scene2= new THREE.Scene();
+			var camera= new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			var cameraFirst= new THREE.PerspectiveCamera( 75 , window.innerWidth / window.innerHeight, 0.1, 1000 );
+			var renderer = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			document.body.appendChild( renderer.domElement );
+			var cubeFrog; var oldFrog = [];
+			var cubeScene = []; var logs = []; var cars = []; var blackBoxRight; var blackBoxLeft;
+			var startpointX = 0; var startpointY = -5; 
+			var score = 0; var stage = 1; var life = 10; var successFrog = 0;
+			var textScore; var textStage; var textLive; var textSuccess;
+			var genNewFrog = false;
+			var thirdPerson = true;
+			/* keyboard input implementation (currently not using )
+			(THREEx.KeyboardState.js from http://learningthreejs.com/blog/2011/09/12/lets-Make-a-3D-game-keyboard/)
+			*/
+			//var keyboard = new THREEx.KeyboardState();
+			
+			
+			
+			init();
+			animate();
+			
+			function createCORSRequest(method, url) {
+				  var xhr = new XMLHttpRequest();
+				  if ("withCredentials" in xhr) {
+
+				    // Check if the XMLHttpRequest object has a "withCredentials" property.
+				    // "withCredentials" only exists on XMLHTTPRequest2 objects.
+				    xhr.open(method, url, true);
+
+				  } else if (typeof XDomainRequest != "undefined") {
+
+				    // Otherwise, check if XDomainRequest.
+				    // XDomainRequest only exists in IE, and is IE's way of making CORS requests.
+				    xhr = new XDomainRequest();
+				    xhr.open(method, url);
+
+				  } else {
+
+				    // Otherwise, CORS is not supported by the browser.
+				    xhr = null;
+
+				  }
+				  return xhr;
+			}
+			
+		function init(){
+			
+			/**set scene*/
+			var geometry = new THREE.BoxGeometry(1,1,1);
+			var materialGreen = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+			var materialBrown = new THREE.MeshBasicMaterial( { color: 0x631919 } );
+			var materialWater = new THREE.MeshBasicMaterial( { color: 0x0000cc } );
+			var materialRock  = new THREE.MeshBasicMaterial( { color: 0x7f7f7f } );
+			var materialRoad  = new THREE.MeshBasicMaterial( { color: 0x100404 } );
+			
+			var geometryRiver = new THREE.BoxGeometry(11,5,1);
+			var geometryOneLine = new THREE.BoxGeometry(11,1,1);
+			var geometryRoad = new THREE.BoxGeometry(11,4,1);
+		    
+			// cubeScene[0]~cubescene[10] : the goal line
+			for(var i=0;i<11;i++){
+				if(i%2==1){
+					cubeScene.push(new THREE.Mesh( geometry, materialGreen));
+				}else{
+					cubeScene.push(new THREE.Mesh( geometry, materialBrown));	
+				}
+				cubeScene[i].translateX(-5+i);
+				cubeScene[i].translateY(5);
+				scene.add(cubeScene[i]);	
+			}
+			
+			//https://raw.githubusercontent.com/IceMistWorm/gh-pages/master/water_texture.jpeg
+			//https://github.com/IceMistWorm/gh-pages/blob/master/water_texture.jpeg?raw=true
+					
+			/* instantiate a loader
+			THREE.ImageUtils.crossOrigin = 'anonymous';﻿
+			var loader = new THREE.TextureLoader();
+			loader.setCrossOrigin("anonymous");
+			loader.load('http://i.imgur.com/Bam50yB.jpg', function ( texture ) {
+				var material = new THREE.MeshLambertMaterial({map: texture});
+			    cubeScene.push(new THREE.Mesh( geometryRiver, material));
+	    		cubeScene[11].translateY(3);
+	    		scene.add(cubeScene[11]);
+			});*/
+			
+			
+			// cubeScene[11] : the river
+			cubeScene.push(new THREE.Mesh( geometryRiver, materialWater));
+			cubeScene[11].translateY(2);
+			scene.add(cubeScene[11]);
+			
+			// cubeScene[12] : the rock bank
+			
+			cubeScene.push(new THREE.Mesh( geometryOneLine, materialRock));
+			cubeScene[12].translateY(0);
+			scene.add(cubeScene[12]);
+			
+			// cubeScene[13] : the road
+			
+			cubeScene.push(new THREE.Mesh( geometryRoad, materialRoad));
+			cubeScene[13].translateY(-2);
+			scene.add(cubeScene[13]);
+			
+			// cubeScene[13] : the start line
+			
+			cubeScene.push(new THREE.Mesh( geometryOneLine, materialGreen));
+			cubeScene[14].translateY(-5);
+			scene.add(cubeScene[14]);
+			
+			/*end of setting the scene*/
+			
+			/* Start to add objects to the scene*/
+			
+			// our main character: the frog
+			var frogGeometry = new THREE.BoxGeometry(0.7,0.7,0.7);
+			var materialFrog = new THREE.MeshBasicMaterial( { color: 0x008000 } );
+			cubeFrog = new THREE.Mesh (frogGeometry,materialFrog);
+			cubeFrog.translateX(0);
+			cubeFrog.translateY(-5);
+			cubeFrog.translateZ(1);
+			scene.add(cubeFrog);
+			
+			// logs on the river 4 lines
+			
+			var materialLog1  = new THREE.MeshBasicMaterial( { color: 0x523415 } );
+			var materialLog2  = new THREE.MeshBasicMaterial( { color: 0xa5682a } );
+			var materialLog3  = new THREE.MeshBasicMaterial( { color: 0x73481d } );
+			var log1Geometry  = new THREE.BoxGeometry(2.2,0.9,0.9);
+			var log2Geometry  = new THREE.BoxGeometry(4,0.9,0.9);
+			var log3Geometry  = new THREE.BoxGeometry(1.5,0.9,0.9);
+			for(var i = 0; i < 3; i++){
+				logs.push(new THREE.Mesh( log1Geometry, materialLog1));
+				logs[i].translateX(-4.1 + i * 3.8);
+				logs[i].translateY(4);
+				logs[i].translateZ(0.2);
+				scene.add(logs[i]);
+			}
+			for(var i = 3; i < 5; i++){
+				logs.push(new THREE.Mesh( log2Geometry, materialLog2));
+				logs[i].translateX(-2.5 + (i-3) * 5.3);
+				logs[i].translateY(3);
+				logs[i].translateZ(0.2);
+				scene.add(logs[i]);
+			}
+			for(var i = 5; i < 9; i++){
+				logs.push(new THREE.Mesh( log3Geometry, materialLog3));
+				logs[i].translateX(-4 + (i-5) * 2.7);
+				logs[i].translateY(2);
+				logs[i].translateZ(0.2);
+				scene.add(logs[i]);
+			}
+			for(var i = 9; i < 12; i++){
+				logs.push(new THREE.Mesh( log1Geometry, materialLog1));
+				logs[i].translateX(-3 + (i-9) * 3.7);
+				logs[i].translateY(1);
+				logs[i].translateZ(0.2);
+				scene.add(logs[i]);
+			}
+			
+			// cars on the road 4 lines
+			
+			
+			var materialCar1  = new THREE.MeshBasicMaterial( { color: 0xffa500 } );
+			var materialCar2  = new THREE.MeshBasicMaterial( { color: 0xff9999 } );
+			var materialCar3  = new THREE.MeshBasicMaterial( { color: 0xb2b200 } );
+			var materialCar4  = new THREE.MeshBasicMaterial( { color: 0x990099 } );
+			var car1Geometry  = new THREE.BoxGeometry(1.5,0.8,0.8);
+			var car2Geometry  = new THREE.BoxGeometry(1.1,0.8,0.8);
+			var car3Geometry  = new THREE.BoxGeometry(0.9,0.9,0.9);
+			var car4Geometry  = new THREE.BoxGeometry(0.9,0.9,0.9);
+			for(var i = 0; i < 3; i++){
+				cars.push(new THREE.Mesh( car1Geometry, materialCar1));
+				cars[i].translateX(-4.1 + i * 3.8);
+				cars[i].translateY(-1);
+				cars[i].translateZ(1);
+				scene.add(cars[i]);
+			}
+			for(var i = 3; i < 6; i++){
+				cars.push(new THREE.Mesh( car2Geometry, materialCar2));
+				cars[i].translateX(-2.5 + (i-3) * 3.3);
+				cars[i].translateY(-2);
+				cars[i].translateZ(1);
+				scene.add(cars[i]);
+			}
+			for(var i = 6; i < 9; i++){
+				cars.push(new THREE.Mesh( car3Geometry, materialCar3));
+				cars[i].translateX(-4 + (i-5) * 2.7);
+				cars[i].translateY(-3);
+				cars[i].translateZ(1);
+				scene.add(cars[i]);
+			}
+			for(var i = 9; i < 12; i++){
+				cars.push(new THREE.Mesh( car4Geometry, materialCar4));
+				cars[i].translateX(-3 + (i-9) * 3.7);
+				cars[i].translateY(-4);
+				cars[i].translateZ(1);
+				scene.add(cars[i]);
+			}
+			
+			// 2 huge black box to cover right and left occludsion
+			var materialBlackBox  = new THREE.MeshBasicMaterial( { color: 0x000000 } );
+			var blackBoxGeometry  = new THREE.BoxGeometry(15,15,15);
+			blackBoxRight = new THREE.Mesh(blackBoxGeometry, materialBlackBox);
+			blackBoxLeft  = new THREE.Mesh(blackBoxGeometry, materialBlackBox);
+			
+			blackBoxRight.translateX(13);
+			blackBoxLeft.translateX(-13);
+			scene.add(blackBoxRight);scene.add(blackBoxLeft);
+			
+			/* End adding objects to the scene*/
+			
+			camera.position.set(0,-10,7);
+			camera.up = new THREE.Vector3(0,0,1);
+			camera.lookAt(new THREE.Vector3(0,0,-3));
+			
+			cameraFirst.position.set(0,0,0);
+			cameraFirst.up = new THREE.Vector3(0,0,1);
+			cameraFirst.lookAt(new THREE.Vector3(0,20,2));
+			
+			//document.addEventListener("keydown", onDocumentKeyDown, false);
+			document.onkeydown = handleKeyDown; // call this when key pressed
+			
+			// draw text information on canvas //
+			// create a canvas element
+			
+			var canvas1 = document.createElement('canvas');
+			var context1 = canvas1.getContext('2d');
+			context1.font = "10px Georgia";
+			context1.fillStyle = "rgba(255,255,255,1)";
+		    context1.fillText('Score ' + score, 80,50);
+		    
+		    textScore = document.createElement('div');
+		    textStage = document.createElement('div');
+		    textLife = document.createElement('div');
+		    textSuccess = document.createElement('div');
+
+		   
+		}
+			/* Start to add motion of logs and cars*/
+			
+			// car's x-direction, y-direction and speed per frame
+			
+			
+			/*
+			camera.position.z = 11;
+			camera.position.y = -1;
+			camera.position.x = 0;
+			*/
+			
+			// model
+			
+		function render() {
+			if(thirdPerson == true){
+				renderer.render( scene, camera );
+			}else{
+				renderer.render( scene, cameraFirst );
+			}
+		}
+			
+		function update(){
+			
+			// is this main game loop?
+			// A simple way to show current stage, current live, score, and success frogs
+			
+			
+			
+			textStage.style.position = 'absolute';
+			textStage.style.zIndex = 1;
+			textStage.style.width = 100;
+			textStage.style.height = 100;
+			textStage.style.backgroundColor = "yellow";
+			textStage.innerHTML = "Stage: " + stage;
+			textStage.style.top = 10 + 'px';
+			textStage.style.left = 50 + 'px';
+			document.body.appendChild(textStage);
+			
+			textScore.style.position = 'absolute';
+			textScore.style.zIndex = 1;
+			textScore.style.width = 100;
+			textScore.style.height = 100;
+			textScore.style.backgroundColor = "white";
+			textScore.innerHTML = "Score: " + score;
+			textScore.style.top = 10 + 'px';
+			textScore.style.left = 650 + 'px';
+			document.body.appendChild(textScore);
+			
+			textLife.style.position = 'absolute';
+			textLife.style.zIndex = 1;
+			textLife.style.width = 100;
+			textLife.style.height = 100;
+			textLife.style.backgroundColor = "red";
+			textLife.innerHTML = "Life: " + life;
+			textLife.style.top = 10 + 'px';
+			textLife.style.left = 500 + 'px';
+			document.body.appendChild(textLife);
+			
+			textSuccess.style.position = 'absolute';
+			textSuccess.style.zIndex = 1;
+			textSuccess.style.width = 100;
+			textSuccess.style.height = 100;
+			textSuccess.style.backgroundColor = "green";
+			textSuccess.innerHTML = "Success: " + successFrog;
+			textSuccess.style.top = 10 + 'px';
+			textSuccess.style.left = 800 + 'px';
+			document.body.appendChild(textSuccess);
+			
+			if(genNewFrog == true){
+				genNewFrog = false;
+				successFrog++;
+				scene.remove(cubeFrog);
+				var frogGeometry = new THREE.BoxGeometry(0.7,0.7,0.7);
+				var materialFrog = new THREE.MeshBasicMaterial( { color: 0x008000 } );
+				cubeFrog = new THREE.Mesh (frogGeometry,materialFrog);
+				cubeFrog.translateX(0);
+				cubeFrog.translateY(-5);
+				cubeFrog.translateZ(1);
+				scene.add(cubeFrog);
+			}
+			
+			
+			var mov1DirX = 1, mov1Speed = 0.04 * stage;
+			var mov2DirX = -1, mov2Speed = 0.08 * stage;
+			var mov3DirX = 1, mov3Speed = 0.02 * stage;
+			var mov4DirX = 1, mov4Speed = 0.0;
+			// update car's and log's position every frame
+			for(var i = 0; i < 3; i++){
+				cars[i].position.x += mov1DirX * mov1Speed;
+				if(cars[i].position.x>6.5){
+					cars[i].position.x = -6.5;
+				}
+			}
+			for(var i = 3; i < 6; i++){
+				cars[i].position.x += mov2DirX * mov2Speed;
+				if(cars[i].position.x<-6.5){
+					cars[i].position.x = 6.5;
+				}
+			}
+			for(var i = 6; i < 9; i++){
+				cars[i].position.x += mov3DirX * mov3Speed;
+				if(cars[i].position.x>6.5){
+					cars[i].position.x = -6.5;
+				}
+			}
+			for(var i = 9; i < 12; i++){
+				cars[i].position.x += mov1DirX * mov1Speed;
+				if(cars[i].position.x>6.5){
+					cars[i].position.x = -6.5;
+				}
+			}
+			if(stage == 2){
+				var randomSpeed = getRandomArbitrary(-0.1,0.3);
+				mov4Speed = randomSpeed;
+				cars[12].position.x += mov4DirX * mov4Speed;
+				if(cars[12].position.x>6.5){
+					cars[12].position.x = -6.5;
+				}
+			}
+			for(var i = 0; i < 3; i++){
+				logs[i].position.x += mov2DirX * mov1Speed;
+				if(logs[i].position.x<-6.5){
+				logs[i].position.x = 6.5;
+				}
+			}
+			for(var i = 3; i < 5; i++){
+				logs[i].position.x += mov2DirX * mov2Speed;
+				if(logs[i].position.x<-8.5){
+					logs[i].position.x = 8.5;
+				}
+			}
+			for(var i = 5; i < 9; i++){
+				logs[i].position.x += mov1DirX * mov1Speed;
+				if(logs[i].position.x>6.5){
+					logs[i].position.x = -6.5;
+				}
+			}
+			for(var i = 9; i < 12; i++){
+				logs[i].position.x += mov3DirX * mov3Speed;
+				if(logs[i].position.x>6.5){
+					logs[i].position.x = -6.5;
+				}
+			}
+			
+			// Frog and vehicle collision detection
+		
+			if(cubeFrog.position.y == -4){
+				if(stage == 1){
+					for(var i=9;i<12;i++){
+						var distance = cubeFrog.position.x - cars[i].position.x;
+						if(Math.abs(distance) < 0.6){
+							// need to implement lose a life here
+							cubeFrog.position.x = startpointX;
+							cubeFrog.position.y = startpointY;
+							reduceLife();
+						}
+					}
+				}else{
+					var distance = cubeFrog.position.x - cars[12].position.x;
+					if(Math.abs(distance) < 0.8){
+						// need to implement lose a life here
+						cubeFrog.position.x = startpointX;
+						cubeFrog.position.y = startpointY;
+						reduceLife();
+					}
+				}
+			}
+			if(cubeFrog.position.y == -3){
+				for(var i=6;i<9;i++){
+					var distance = cubeFrog.position.x - cars[i].position.x;
+					if(Math.abs(distance) < 0.6){
+						// need to implement lose a life here
+						cubeFrog.position.x = startpointX;
+						cubeFrog.position.y = startpointY;
+						reduceLife();
+					}
+				}
+			}
+			if(cubeFrog.position.y == -2){
+				for(var i=3;i<6;i++){
+					var distance = cubeFrog.position.x - cars[i].position.x;
+					if(Math.abs(distance) < 0.7){
+						// need to implement lose a life here
+						cubeFrog.position.x = startpointX;
+						cubeFrog.position.y = startpointY;
+						reduceLife();
+					}
+				}
+			}
+			if(cubeFrog.position.y == -1){
+				for(var i=0;i<3;i++){
+					var distance = cubeFrog.position.x - cars[i].position.x;
+					if(Math.abs(distance) < 0.8){
+						// need to implement lose a life here
+						cubeFrog.position.x = startpointX;
+						cubeFrog.position.y = startpointY;
+						reduceLife();
+					}
+				}
+			}
+						
+			
+			// Frogs moving with the log & frog dies when landing on river
+			
+			if(cubeFrog.position.y == 1){
+				cubeFrog.position.x += mov3DirX * mov3Speed;
+				if(cubeFrog.position.x>6.5){
+					cubeFrog.position.x = -6.5;
+				}
+				var onlog = false;
+				for(var i=9;i<12;i++){
+					var distance = cubeFrog.position.x - logs[i].position.x;
+					if(Math.abs(distance) < 1.5){
+						onlog = true;
+					}	
+				}
+				if(onlog == false && cubeFrog.position.x >-5 && cubeFrog.position.x <5){
+					cubeFrog.position.x =  startpointX;
+					cubeFrog.position.y =  startpointY;
+					reduceLife();
+				}
+			}else if(cubeFrog.position.y == 2){
+				cubeFrog.position.x += mov1DirX * mov1Speed;
+				if(cubeFrog.position.x>6.5){
+					cubeFrog.position.x = -6.5;
+				}
+				var onlog = false;
+				for(var i=5;i<9;i++){
+					var distance = cubeFrog.position.x - logs[i].position.x;
+					if(Math.abs(distance) < 1.25){
+						onlog = true;
+					}	
+				}
+				if(onlog == false && cubeFrog.position.x >-5 && cubeFrog.position.x <5){
+					cubeFrog.position.x =  startpointX;
+					cubeFrog.position.y =  startpointY;
+					reduceLife();
+				}
+			}else if(cubeFrog.position.y == 3){
+				cubeFrog.position.x += mov2DirX * mov2Speed;
+				if(cubeFrog.position.x<-8.5){
+					cubeFrog.position.x = 8.5;
+				}
+				var onlog = false;
+				for(var i=3;i<5;i++){
+					var distance = cubeFrog.position.x - logs[i].position.x;
+					if(Math.abs(distance) < 2.3){
+						onlog = true;
+					}	
+				}
+				if(onlog == false && cubeFrog.position.x >-5 && cubeFrog.position.x <5){
+					cubeFrog.position.x =  startpointX;
+					cubeFrog.position.y =  startpointY;
+					reduceLife();
+				}
+			}else if(cubeFrog.position.y == 4){
+				cubeFrog.position.x += mov2DirX * mov1Speed;
+				if(cubeFrog.position.x<-6.5){
+					cubeFrog.position.x = 6.5;
+				}
+				var onlog = false;
+				for(var i=0;i<3;i++){
+					var distance = cubeFrog.position.x - logs[i].position.x;
+					if(Math.abs(distance) < 1.5){
+						onlog = true;
+					}	
+				}
+				if(onlog == false && cubeFrog.position.x >-5 && cubeFrog.position.x <5){
+					cubeFrog.position.x =  startpointX;
+					cubeFrog.position.y =  startpointY;
+					reduceLife();
+				}
+			}else if(cubeFrog.position.y == 5){
+				if(Math.abs(cubeFrog.position.x)%2 == 0){
+					genNewFrog = true;
+				}else{
+					cubeFrog.position.x = startpointX;
+					cubeFrog.position.y = startpointY;
+					reduceLife();
+				}
+			}
+			
+			/*
+			if( keyboard.pressed("a")){
+				cubeFrog.translateX(-0.1);
+			}
+			if( keyboard.pressed("d")){
+				cubeFrog.translateX(0.1);
+			}
+			if( keyboard.pressed("w")){
+				cubeFrog.translateY(0.1);
+			}
+			if( keyboard.pressed("s")){
+				cubeFrog.translateY(-0.1);
+			}
+			*/
+			
+			// naive new stage strategy
+			
+			if(successFrog >=2 && stage == 1){
+				stage = 2;
+				successFrog = 0;
+				for(var i = 9; i < 12; i++){
+					scene.remove(cars[i]);
+				}
+				
+				var materialCar5  = new THREE.MeshBasicMaterial( { color: 0xFFFFFF } );
+				var car5Geometry  = new THREE.BoxGeometry(1.5,0.8,0.8);
+				cars.push(new THREE.Mesh( car5Geometry, materialCar5));
+				cars[12].translateX(-3);
+				cars[12].translateY(-4);
+				cars[12].translateZ(1);
+				scene.add(cars[12]);
+				
+			}
+			
+			cameraFirst.position.set(cubeFrog.position.x,cubeFrog.position.y,cubeFrog.position.z);
+		}
+		
+		function handleKeyDown(event){ 
+			// Get the key code of the pressed key 
+			var keyCode = event.keyCode;
+			
+			// boundary keyboard input detection
+			if(cubeFrog.position.x>=-5 && cubeFrog.position.x<=5 && cubeFrog.position.y<=5 && cubeFrog.position.y>=-5){
+			
+				if(keyCode == 65){        // key a
+					if(cubeFrog.position.x>-5){
+				 		cubeFrog.translateX(-1);
+				 	}
+				}else if(keyCode == 68){   // key d
+					if(cubeFrog.position.x<5){
+						cubeFrog.translateX(1);
+					}
+				}else if(keyCode == 83){   // key s
+					if(cubeFrog.position.y>-5){
+						cubeFrog.translateY(-1);
+						if(cubeFrog.position.y==0){
+							var original_x = cubeFrog.position.x;
+							cubeFrog.position.x = Math.round(original_x);
+						}
+					}
+				}else if(keyCode == 87){   // key w
+					if(cubeFrog.position.y<5){
+						cubeFrog.translateY(1);
+						if(cubeFrog.position.y==5){
+							var original_x = cubeFrog.position.x;
+							cubeFrog.position.x = Math.round(original_x);
+						}
+					}
+					score += 10;
+				}else if(keyCode == 70){ // key space
+					if(thirdPerson == true)
+						thirdPerson = false;
+					else
+						thirdPerson = true;
+				}
+			}
+
+		}
+		
+		// Returns a random number between min (inclusive) and max (exclusive)
+		function getRandomArbitrary(min, max) {
+		  return Math.random() * (max - min) + min;
+		}
+		
+		function reduceLife(){
+			if(life>0){
+				life--;
+			}
+		}
+			
+		function animate() 
+		{
+			requestAnimationFrame(animate);
+			render();		
+			update();
+		}
+			
+		</script>
+	</body>
+</html>
